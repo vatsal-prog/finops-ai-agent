@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "finops-agent": {
+      "command": "python3",
+      "args": ["-m", "finops_agent.mcp_server"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    }
+  }
+}
