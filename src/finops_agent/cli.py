@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 
@@ -13,6 +14,7 @@ from finops_agent.analytics import (
     get_cost_breakdown,
     simulate_savings,
 )
+from finops_agent.mcp_agent import MCPFinOpsAgent
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,10 +29,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    inv = sub.add_parser("investigate", help="Run full agent investigation playbook")
+    inv = sub.add_parser(
+        "investigate",
+        help="Run V1 agent investigation playbook (direct Python analytics)",
+    )
     inv.add_argument("--lookback-days", type=int, default=30)
     inv.add_argument("--json", action="store_true", help="Emit machine-readable JSON trace")
     inv.add_argument("-o", "--output", help="Write report to file")
+
+    inv_mcp = sub.add_parser(
+        "investigate-mcp",
+        help="Run V3 agent investigation over MCP (stdio client → MCP server)",
+    )
+    inv_mcp.add_argument("--lookback-days", type=int, default=30)
+    inv_mcp.add_argument("--json", action="store_true", help="Emit machine-readable JSON trace")
+    inv_mcp.add_argument("-o", "--output", help="Write report to file")
 
     bd = sub.add_parser("breakdown", help="Cost breakdown")
     bd.add_argument("--group-by", default="service", choices=["service", "region", "resource", "team", "env", "day"])
@@ -74,6 +87,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "investigate":
         agent = FinOpsAgent(data_path=data_path)
         trace = agent.investigate(lookback_days=args.lookback_days)
+        if args.json:
+            payload = json.dumps(trace.to_dict(), indent=2)
+        else:
+            payload = agent.format_markdown(trace)
+        if args.output:
+            with open(args.output, "w") as f:
+                f.write(payload)
+            print(f"Wrote {args.output}", file=sys.stderr)
+        print(payload)
+        return 0
+
+    if args.command == "investigate-mcp":
+        if data_path is not None:
+            print(
+                "Note: --data is ignored for investigate-mcp; "
+                "the MCP server uses its bundled sample dataset.",
+                file=sys.stderr,
+            )
+        agent = MCPFinOpsAgent()
+        trace = asyncio.run(agent.investigate(lookback_days=args.lookback_days))
         if args.json:
             payload = json.dumps(trace.to_dict(), indent=2)
         else:

@@ -13,15 +13,13 @@ Built as a demonstration of **agents working with structured data** via custom *
 | `generate_optimization_report()` | Full prioritized FinOps report + narrative |
 
 ```
-┌─────────────────┐     MCP (stdio)     ┌──────────────────────────┐
-│  Cursor / LLM   │ ◄─────────────────► │  finops-agent MCP server │
-│  or CLI agent   │                     │  + analytics engine      │
-└─────────────────┘                     └────────────┬─────────────┘
-                                                     │
+┌──────────────────────┐   MCP stdio    ┌──────────────────────────┐
+│ V3 MCPFinOpsAgent    │ ◄────────────► │ finops-agent MCP server  │
+│ (or Cursor / future  │  list/call     │  + analytics engine      │
+│  LLM planner)        │     tools      └────────────┬─────────────┘
+└──────────────────────┘                             │
                                           ┌──────────▼──────────┐
                                           │ sample_billing.json │
-                                          │ (structured costs + │
-                                          │  utilization series)│
                                           └─────────────────────┘
 ```
 
@@ -31,10 +29,13 @@ Built as a demonstration of **agents working with structured data** via custom *
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Full agent investigation (deterministic playbook, no LLM required)
+# V1 — direct Python analytics (baseline)
 finops-agent investigate
 
-# Individual tools via CLI
+# V3 — same playbook over MCP (client → server → analytics)
+finops-agent investigate-mcp
+
+# Individual tools via CLI (direct analytics)
 finops-agent breakdown --group-by service
 finops-agent anomalies --group-by service --sensitivity 2.5
 finops-agent underutilized --cpu-threshold 20
@@ -42,20 +43,23 @@ finops-agent simulate rightsize
 finops-agent simulate delete_idle
 ```
 
-Or run the demo script:
+Or run the demo scripts:
 
 ```bash
-PYTHONPATH=src python demos/run_investigation.py
+PYTHONPATH=src python3 demos/run_investigation.py      # V1
+PYTHONPATH=src python3 demos/run_mcp_client.py         # V2 client only
+PYTHONPATH=src python3 demos/run_mcp_investigation.py  # V3 MCP agent
 ```
 
-## Version 1 vs Version 2
+## Version 1 → 2 → 3
 
 | Version | Entry point | How tools are invoked |
 |---|---|---|
 | **V1 (baseline)** | `finops_agent.agent.FinOpsAgent` | Direct Python calls into `analytics.py` |
 | **V2 (MCP client)** | `finops_agent.mcp_client.FinOpsMCPClient` | Spawns MCP server over stdio, discovers tools, calls by name |
+| **V3 (MCP agent)** | `finops_agent.mcp_agent.MCPFinOpsAgent` | Same investigation playbook as V1, but every step goes through MCP |
 
-V1 is intentionally unchanged. V2 does **not** import analytics functions.
+V1 is intentionally unchanged. V2/V3 do **not** import analytics functions and do **not** use an LLM yet.
 
 ### MCP client demo (V2)
 
@@ -63,16 +67,22 @@ V1 is intentionally unchanged. V2 does **not** import analytics functions.
 PYTHONPATH=src python3 demos/run_mcp_client.py
 ```
 
-Programmatic usage:
+### MCP agent demo (V3)
+
+```bash
+finops-agent investigate-mcp
+# or
+PYTHONPATH=src python3 demos/run_mcp_investigation.py
+```
 
 ```python
 import asyncio
-from finops_agent.mcp_client import FinOpsMCPClient
+from finops_agent.mcp_agent import MCPFinOpsAgent
 
 async def main():
-    async with FinOpsMCPClient() as client:
-        print(await client.list_tools())
-        print(await client.call_tool("get_cost_breakdown", {"group_by": "service"}))
+    agent = MCPFinOpsAgent()
+    trace = await agent.investigate()
+    print(agent.format_markdown(trace))
 
 asyncio.run(main())
 ```
@@ -118,6 +128,7 @@ src/finops_agent/
   analytics.py     # get_cost_breakdown, detect_anomaly, simulate_savings, …
   mcp_server.py    # MCP tool surface (MCPServer)
   mcp_client.py    # V2 MCP client (stdio discover + call_tool)
+  mcp_agent.py     # V3 investigation agent over MCP
   agent.py         # V1 deterministic investigation agent + trace
   cli.py           # finops-agent CLI
 ```
