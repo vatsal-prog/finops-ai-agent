@@ -48,6 +48,35 @@ Or run the demo script:
 PYTHONPATH=src python demos/run_investigation.py
 ```
 
+## Version 1 vs Version 2
+
+| Version | Entry point | How tools are invoked |
+|---|---|---|
+| **V1 (baseline)** | `finops_agent.agent.FinOpsAgent` | Direct Python calls into `analytics.py` |
+| **V2 (MCP client)** | `finops_agent.mcp_client.FinOpsMCPClient` | Spawns MCP server over stdio, discovers tools, calls by name |
+
+V1 is intentionally unchanged. V2 does **not** import analytics functions.
+
+### MCP client demo (V2)
+
+```bash
+PYTHONPATH=src python3 demos/run_mcp_client.py
+```
+
+Programmatic usage:
+
+```python
+import asyncio
+from finops_agent.mcp_client import FinOpsMCPClient
+
+async def main():
+    async with FinOpsMCPClient() as client:
+        print(await client.list_tools())
+        print(await client.call_tool("get_cost_breakdown", {"group_by": "service"}))
+
+asyncio.run(main())
+```
+
 ## MCP server (Cursor / Claude Desktop)
 
 This repo includes [`.cursor/mcp.json`](.cursor/mcp.json). After `pip install -e .`, the server starts with:
@@ -71,7 +100,7 @@ Example agent prompts once the MCP server is connected:
 
 - Multi-service line items (EC2, RDS, S3, EKS, NAT, ELB, Lambda, …)
 - Daily utilization (CPU / memory) for compute
-- **Planted anomalies** (days 45–48 data-transfer / S3 / CloudWatch spike)
+- **Planted anomalies** (late-period data-transfer / S3 / CloudWatch spike)
 - **Underutilized** instances, idle ELB, unattached EBS, staging cache
 
 Regenerate with:
@@ -88,7 +117,8 @@ src/finops_agent/
   data_store.py    # Billing/utilization loader + filters
   analytics.py     # get_cost_breakdown, detect_anomaly, simulate_savings, …
   mcp_server.py    # MCP tool surface (MCPServer)
-  agent.py         # Deterministic investigation agent + trace
+  mcp_client.py    # V2 MCP client (stdio discover + call_tool)
+  agent.py         # V1 deterministic investigation agent + trace
   cli.py           # finops-agent CLI
 ```
 
