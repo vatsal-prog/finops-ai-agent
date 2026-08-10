@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FINOPS — Cloud Cost Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="hero">
+    <p class="brand">FINOPS</p>
+    <h1 class="tagline">See the spend. Ask the agent.</h1>
+    <p class="lede">
+      Cloud cost optimization over structured billing data — breakdowns, anomalies,
+      waste, and savings, through MCP tools.
+    </p>
+    <p class="meta" id="account-meta">Loading account…</p>
+  </header>
+
+  <main class="stage">
+    <section class="panel signal" aria-labelledby="signal-title">
+      <div class="panel-head">
+        <h2 id="signal-title">Spend signal</h2>
+        <p class="panel-note" id="total-cost">—</p>
+      </div>
+      <div class="chart" id="service-chart" role="img" aria-label="Cost by service"></div>
+      <div class="split-stats">
+        <div>
+          <h3>Anomalies</h3>
+          <p class="stat" id="anomaly-stat">—</p>
+          <ul class="list" id="anomaly-list"></ul>
+        </div>
+        <div>
+          <h3>Underutilized</h3>
+          <p class="stat" id="waste-stat">—</p>
+          <ul class="list" id="waste-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel console" aria-labelledby="ask-title">
+      <div class="panel-head">
+        <h2 id="ask-title">Ask the agent</h2>
+        <label class="planner-label">
+          Planner
+          <select id="planner" name="planner">
+            <option value="offline" selected>offline</option>
+            <option value="auto">auto</option>
+            <option value="openai">openai</option>
+          </select>
+        </label>
+      </div>
+
+      <form id="ask-form" class="ask-form">
+        <label class="sr-only" for="question">Question</label>
+        <textarea
+          id="question"
+          name="question"
+          rows="3"
+          maxlength="2000"
+          placeholder="Where is our cloud money going, and are there anomalies?"
+          required
+        ></textarea>
+        <div class="ask-actions">
+          <div class="suggestions" id="suggestions">
+            <button type="button" data-q="Where is our cloud money going by service?">Spend by service</button>
+            <button type="button" data-q="Are there unusual spending anomalies?">Find anomalies</button>
+            <button type="button" data-q="What underutilized resources can we rightsize for savings?">Find waste</button>
+          </div>
+          <button type="submit" class="ask-submit" id="ask-submit">Ask</button>
+        </div>
+      </form>
+
+      <div class="status" id="status" aria-live="polite"></div>
+
+      <div class="answer-block" id="answer-block" hidden>
+        <h3>Answer</h3>
+        <div class="answer" id="answer"></div>
+        <h3>Tool trace</h3>
+        <ol class="trace" id="trace"></ol>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>V5 dashboard · MCP-backed agent · sample billing data</span>
+  </footer>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

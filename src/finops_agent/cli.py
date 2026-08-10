@@ -93,6 +93,18 @@ def build_parser() -> argparse.ArgumentParser:
     sav.add_argument("--lookback-days", type=int, default=30)
     sav.add_argument("--discount-pct", type=float, default=None)
 
+    serve = sub.add_parser(
+        "serve",
+        help="V5 web dashboard (spend charts + ask-the-agent chat)",
+    )
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument(
+        "--reload",
+        action="store_true",
+        help="Auto-reload on code changes (development)",
+    )
+
     return parser
 
 
@@ -199,6 +211,21 @@ def main(argv: list[str] | None = None) -> int:
             data_path=data_path,
         )
         print(result.model_dump_json(indent=2))
+        return 0
+
+    if args.command == "serve":
+        import uvicorn
+
+        print(
+            f"FinOps dashboard → http://{args.host}:{args.port}",
+            file=sys.stderr,
+        )
+        uvicorn.run(
+            "finops_agent.web.app:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+        )
         return 0
 
     parser.error(f"Unknown command: {args.command}")

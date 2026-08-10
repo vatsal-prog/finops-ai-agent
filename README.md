@@ -13,14 +13,10 @@ Built as a demonstration of **agents working with structured data** via custom *
 | `generate_optimization_report()` | Full prioritized FinOps report + narrative |
 
 ```
-┌──────────────────────┐   MCP stdio    ┌──────────────────────────┐
-│ V4 LLMFinOpsAgent    │ ◄────────────► │ finops-agent MCP server  │
-│ (LLM / offline       │  list/call     │  + analytics engine      │
-│  planner chooses     │     tools      └────────────┬─────────────┘
-│  tools dynamically)  │                             │
-└──────────────────────┘                  ┌──────────▼──────────┐
-                                          │ sample_billing.json │
-                                          └─────────────────────┘
+┌─────────────┐   HTTP    ┌──────────────────┐  MCP stdio  ┌─────────────────────┐
+│ V5 Dashboard│ ────────► │ /api/ask (V4)    │ ──────────► │ finops MCP server   │
+│ (browser)   │           │ /api/overview    │             │ + analytics + data  │
+└─────────────┘           └──────────────────┘             └─────────────────────┘
 ```
 
 ## Quick start
@@ -37,6 +33,10 @@ finops-agent investigate-mcp
 
 # V4 — planner chooses MCP tools from a natural-language question
 finops-agent ask "Where is our cloud money going, and are there anomalies?"
+
+# V5 — web dashboard (charts + ask-the-agent)
+finops-agent serve
+# open http://127.0.0.1:8000
 
 # Individual tools via CLI (direct analytics)
 finops-agent breakdown --group-by service
@@ -55,7 +55,7 @@ PYTHONPATH=src python3 demos/run_mcp_investigation.py  # V3 MCP agent
 PYTHONPATH=src python3 demos/run_llm_agent.py          # V4 planner agent
 ```
 
-## Version 1 → 2 → 3 → 4
+## Version 1 → 2 → 3 → 4 → 5
 
 | Version | Entry point | How tools are invoked |
 |---|---|---|
@@ -63,6 +63,7 @@ PYTHONPATH=src python3 demos/run_llm_agent.py          # V4 planner agent
 | **V2 (MCP client)** | `finops_agent.mcp_client.FinOpsMCPClient` | Spawns MCP server over stdio, discovers tools, calls by name |
 | **V3 (MCP agent)** | `finops_agent.mcp_agent.MCPFinOpsAgent` | Fixed investigation playbook over MCP |
 | **V4 (LLM agent)** | `finops_agent.llm_agent.LLMFinOpsAgent` | Planner chooses tools dynamically from a question, then calls MCP |
+| **V5 (dashboard)** | `finops_agent.web.app` / `finops-agent serve` | Browser UI: overview charts + V4 ask over MCP |
 
 V1 is intentionally unchanged. V2–V4 do **not** import analytics functions.
 
@@ -115,6 +116,23 @@ async def main():
 asyncio.run(main())
 ```
 
+### Web dashboard (V5)
+
+```bash
+finops-agent serve --host 127.0.0.1 --port 8000
+# or
+finops-dashboard
+```
+
+Open `http://127.0.0.1:8000` for:
+- spend-by-service chart, anomaly list, underutilized resources
+- ask box that runs the V4 planner → MCP tool loop
+- live tool-call trace under each answer
+
+API surfaces used by the UI:
+- `GET /api/overview`
+- `POST /api/ask`
+
 ## MCP server (Cursor / Claude Desktop)
 
 This repo includes [`.cursor/mcp.json`](.cursor/mcp.json). After `pip install -e .`, the server starts with:
@@ -159,6 +177,7 @@ src/finops_agent/
   mcp_agent.py     # V3 investigation agent over MCP
   planners.py      # V4 OpenAI + offline planners
   llm_agent.py     # V4 planner↔MCP tool loop
+  web/             # V5 FastAPI dashboard + static UI
   agent.py         # V1 deterministic investigation agent + trace
   cli.py           # finops-agent CLI
 ```
