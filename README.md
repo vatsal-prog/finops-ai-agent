@@ -14,11 +14,11 @@ Built as a demonstration of **agents working with structured data** via custom *
 
 ```
 ┌──────────────────────┐   MCP stdio    ┌──────────────────────────┐
-│ V3 MCPFinOpsAgent    │ ◄────────────► │ finops-agent MCP server  │
-│ (or Cursor / future  │  list/call     │  + analytics engine      │
-│  LLM planner)        │     tools      └────────────┬─────────────┘
-└──────────────────────┘                             │
-                                          ┌──────────▼──────────┐
+│ V4 LLMFinOpsAgent    │ ◄────────────► │ finops-agent MCP server  │
+│ (LLM / offline       │  list/call     │  + analytics engine      │
+│  planner chooses     │     tools      └────────────┬─────────────┘
+│  tools dynamically)  │                             │
+└──────────────────────┘                  ┌──────────▼──────────┐
                                           │ sample_billing.json │
                                           └─────────────────────┘
 ```
@@ -35,6 +35,9 @@ finops-agent investigate
 # V3 — same playbook over MCP (client → server → analytics)
 finops-agent investigate-mcp
 
+# V4 — planner chooses MCP tools from a natural-language question
+finops-agent ask "Where is our cloud money going, and are there anomalies?"
+
 # Individual tools via CLI (direct analytics)
 finops-agent breakdown --group-by service
 finops-agent anomalies --group-by service --sensitivity 2.5
@@ -49,17 +52,19 @@ Or run the demo scripts:
 PYTHONPATH=src python3 demos/run_investigation.py      # V1
 PYTHONPATH=src python3 demos/run_mcp_client.py         # V2 client only
 PYTHONPATH=src python3 demos/run_mcp_investigation.py  # V3 MCP agent
+PYTHONPATH=src python3 demos/run_llm_agent.py          # V4 planner agent
 ```
 
-## Version 1 → 2 → 3
+## Version 1 → 2 → 3 → 4
 
 | Version | Entry point | How tools are invoked |
 |---|---|---|
 | **V1 (baseline)** | `finops_agent.agent.FinOpsAgent` | Direct Python calls into `analytics.py` |
 | **V2 (MCP client)** | `finops_agent.mcp_client.FinOpsMCPClient` | Spawns MCP server over stdio, discovers tools, calls by name |
-| **V3 (MCP agent)** | `finops_agent.mcp_agent.MCPFinOpsAgent` | Same investigation playbook as V1, but every step goes through MCP |
+| **V3 (MCP agent)** | `finops_agent.mcp_agent.MCPFinOpsAgent` | Fixed investigation playbook over MCP |
+| **V4 (LLM agent)** | `finops_agent.llm_agent.LLMFinOpsAgent` | Planner chooses tools dynamically from a question, then calls MCP |
 
-V1 is intentionally unchanged. V2/V3 do **not** import analytics functions and do **not** use an LLM yet.
+V1 is intentionally unchanged. V2–V4 do **not** import analytics functions.
 
 ### MCP client demo (V2)
 
@@ -82,6 +87,29 @@ from finops_agent.mcp_agent import MCPFinOpsAgent
 async def main():
     agent = MCPFinOpsAgent()
     trace = await agent.investigate()
+    print(agent.format_markdown(trace))
+
+asyncio.run(main())
+```
+
+### LLM / offline planner agent (V4)
+
+```bash
+# Offline planner (default when OPENAI_API_KEY is unset) — still uses real MCP tools
+finops-agent ask "Any unusual spending anomalies?" --planner offline
+
+# Real OpenAI-compatible tool calling
+export OPENAI_API_KEY=sk-...
+finops-agent ask "Summarize waste and simulate rightsizing savings" --planner openai --model gpt-4o-mini
+```
+
+```python
+import asyncio
+from finops_agent.llm_agent import LLMFinOpsAgent
+
+async def main():
+    agent = LLMFinOpsAgent(planner_kind="offline")  # or "openai" / "auto"
+    trace = await agent.ask("Where is spend going by service?")
     print(agent.format_markdown(trace))
 
 asyncio.run(main())
@@ -129,6 +157,8 @@ src/finops_agent/
   mcp_server.py    # MCP tool surface (MCPServer)
   mcp_client.py    # V2 MCP client (stdio discover + call_tool)
   mcp_agent.py     # V3 investigation agent over MCP
+  planners.py      # V4 OpenAI + offline planners
+  llm_agent.py     # V4 planner↔MCP tool loop
   agent.py         # V1 deterministic investigation agent + trace
   cli.py           # finops-agent CLI
 ```
