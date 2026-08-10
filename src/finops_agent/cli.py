@@ -14,6 +14,7 @@ from finops_agent.analytics import (
     get_cost_breakdown,
     simulate_savings,
 )
+from finops_agent.llm_agent import LLMFinOpsAgent
 from finops_agent.mcp_agent import MCPFinOpsAgent
 
 
@@ -44,6 +45,22 @@ def build_parser() -> argparse.ArgumentParser:
     inv_mcp.add_argument("--lookback-days", type=int, default=30)
     inv_mcp.add_argument("--json", action="store_true", help="Emit machine-readable JSON trace")
     inv_mcp.add_argument("-o", "--output", help="Write report to file")
+
+    ask = sub.add_parser(
+        "ask",
+        help="V4 planner agent: answer a natural-language FinOps question via MCP tools",
+    )
+    ask.add_argument("question", help="Natural-language question, e.g. 'Any cost anomalies?'")
+    ask.add_argument(
+        "--planner",
+        choices=["auto", "offline", "openai"],
+        default="auto",
+        help="auto uses OpenAI when OPENAI_API_KEY is set, otherwise offline",
+    )
+    ask.add_argument("--model", default="gpt-4o-mini", help="OpenAI-compatible model name")
+    ask.add_argument("--lookback-days", type=int, default=30)
+    ask.add_argument("--json", action="store_true", help="Emit machine-readable JSON trace")
+    ask.add_argument("-o", "--output", help="Write report to file")
 
     bd = sub.add_parser("breakdown", help="Cost breakdown")
     bd.add_argument("--group-by", default="service", choices=["service", "region", "resource", "team", "env", "day"])
@@ -109,6 +126,31 @@ def main(argv: list[str] | None = None) -> int:
         trace = asyncio.run(agent.investigate(lookback_days=args.lookback_days))
         if args.json:
             payload = json.dumps(trace.to_dict(), indent=2)
+        else:
+            payload = agent.format_markdown(trace)
+        if args.output:
+            with open(args.output, "w") as f:
+                f.write(payload)
+            print(f"Wrote {args.output}", file=sys.stderr)
+        print(payload)
+        return 0
+
+    if args.command == "ask":
+        if data_path is not None:
+            print(
+                "Note: --data is ignored for ask; "
+                "the MCP server uses its bundled sample dataset.",
+                file=sys.stderr,
+            )
+        agent = LLMFinOpsAgent(
+            planner_kind=args.planner,
+            model=args.model,
+            lookback_days=args.lookback_days,
+        )
+        print(f"Using planner: {getattr(agent.planner, 'name', args.planner)}", file=sys.stderr)
+        trace = asyncio.run(agent.ask(args.question))
+        if args.json:
+            payload = json.dumps(trace.to_dict(), indent=2, default=str)
         else:
             payload = agent.format_markdown(trace)
         if args.output:
